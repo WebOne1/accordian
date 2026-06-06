@@ -32,21 +32,7 @@ export default function HomePage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
-  // premium prijava
-  const [prikaziPremiumModal, setPrikaziPremiumModal] = useState(false);
-  const [regionType, setRegionType] = useState("");
-  const [customLocation, setCustomLocation] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
-  const [premiumSuccess, setPremiumSuccess] = useState(false);
-  //single_purchase 
-  const [prikaziSinglePurchaseModal, setPrikaziSinglePurchaseModal] = useState(false);
-  const [selectedVideos, setSelectedVideos] = useState<any[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [videoCategories, setVideoCategories] = useState<any[]>([]);
-  const [singlePurchaseSuccess, setSinglePurchaseSuccess] = useState(false);
-  const [spisak, setSpisak] = useState<any[]>([]);
-  const [singlePurchaseError, setSinglePurchaseError] = useState("");
+  
 
 
   // useEffect za učitavanje teme (Dark Mode)
@@ -78,8 +64,6 @@ export default function HomePage() {
       try {
         await getUserData();
         await getVideosData();
-        await getCategoriesData();
-        await getSpisakData();
       } catch (error) {
         console.error("Greška pri učitavanju podataka:", error);
       } finally {
@@ -182,191 +166,10 @@ async function signIn() {
   }, 300);
 }
 
-async function getCategoriesData() {
-  const { data } = await supabase
-    .from("video_categories")
-    .select("*");
-
-  setVideoCategories(data || []);
-}
-
-async function getSpisakData() {
-  const { data, error } = await supabase
-    .from("spisak")
-    .select("*")
-    .order("redni_broj");
-
-//  console.log("SPISAK DATA:", data);
-//  console.log("SPISAK ERROR:", error);
-
-  setSpisak(data || []);
-}
-
   // Funkcija koja formatira Youtube link za iframe embed
   const formatYoutubeUrl = (url: string) => {
     return url.replace("watch?v=", "embed/");
   };
-
-  //Funkcija za premium clanstvo
-  const submitPremiumRequest = async () => {
-
-  if (!regionType) {
-    alert("Izaberite lokaciju.");
-    return;
-  }
-
-  if (regionType === "other" && !customLocation.trim()) {
-    alert("Unesite državu.");
-    return;
-  }
-
- // console.log({
-   // userId,
-  //  userEmail,
- //   regionType,
-  //  customLocation
- // });
-
-  const { error } = await supabase
-    .from("premium_requests")
-    .insert([
-      {
-        user_id: userId,
-        email: userEmail,
-        region_type: regionType,
-        custom_location:
-          regionType === "other"
-            ? customLocation
-            : null,
-      },
-    ]);
-
-//  console.log("SUPABASE ERROR:", error);
-
-  if (error) {
-    alert(error.message);
-    return;
-  }
-
-  setPremiumSuccess(true);
-};
-
-    const submitSinglePurchaseRequest = async () => {
-//  console.log("SUBMIT CLICKED");
-
-  if (selectedVideos.length === 0) {
-  setSinglePurchaseError(
-    "Morate izabrati najmanje jednu kompoziciju."
-  );
-  return;
-}
-
-setSinglePurchaseError("");
-
-//  console.log("SELECTED:", selectedVideos);
-//  console.log("USER ID:", userId);
-//  console.log("EMAIL:", userEmail);
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
- // console.log("SESSION:", session);
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
- // console.log("AUTH USER:", user);
-
-  const { data: requestData, error } = await supabase
-    .from("single_purchase_requests")
-    .insert([
-      {
-        user_id: userId,
-        email: userEmail,
-        status: "pending",
-      },
-    ])
-    .select()
-    .single();
-
-  if (error) {
-   // console.log("REQUEST ERROR:", error);
-    return;
-  }
-
- // console.log("REQUEST DATA:", requestData);
-
-  const selectedRows = spisakWithCategory
-  .filter((v) =>
-    selectedVideos.includes(v.id)
-  )
-  .map((v) => ({
-    request_id: requestData.id,
-    user_id: userId,
-    spisak_id: v.id,
-    naziv_numere: v.naziv_numere,
-    price: v.cena,
-  }));
-
-  //console.log(
-    //"ROWS FULL:",
-    //JSON.stringify(selectedRows, null, 2)
-  //);
-
-  const { error: itemsError } = await supabase
-  .from("single_purchase_items")
-  .insert(selectedRows);
-
-//console.log("ITEMS ERROR:", itemsError);
-
-if (itemsError) {
-//  console.log("ITEMS ERROR FULL:", itemsError);
-  return;
-}
-
-setSinglePurchaseSuccess(true);
-};
-
-
-const spisakWithCategory = spisak.map((item) => ({
-  ...item,
-  categoryName:
-    videoCategories.find(
-      (c) => c.id === item.category_id
-    )?.name || "",
-}));
-
-const filteredVideos = spisakWithCategory
-  .filter(
-    (v) =>
-      categoryFilter === "all" ||
-      v.categoryName === categoryFilter
-  )
-  .filter((v) =>
-    v.naziv_numere
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase())
-  )
-  .sort(
-    (a, b) =>
-      a.redni_broj - b.redni_broj
-  );
-
- // console.log("SPISAK STATE:", spisak);
-// console.log("SPISAK WITH CATEGORY:", spisakWithCategory);
-// console.log("FILTERED:", filteredVideos);
-
-  const totalPrice = spisakWithCategory
-  .filter((v) =>
-    selectedVideos.includes(v.id)
-  )
-  .reduce(
-    (sum, v) => sum + (v.cena || 0),
-    0
-  );
-  
 
   return (
     <main
@@ -389,7 +192,7 @@ const filteredVideos = spisakWithCategory
 
       <div>
         <h1 className="logo-pisan-font text-2xl md:text-4xl font-black text-[#c89b5e]">
-          Vlada Panović
+          Vladimir Panović
         </h1>
 
         <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500">
@@ -553,7 +356,7 @@ const filteredVideos = spisakWithCategory
 </a>
       </div>
 
-      <div className="grid grid-cols-4 gap-8 mt-16 max-w-xl">
+      <div className="grid grid-cols-3 gap-8 mt-16 max-w-xl">
 
         <div>
           <div className="text-3xl font-black text-[#c89b5e]">
@@ -579,15 +382,6 @@ const filteredVideos = spisakWithCategory
           </div>
           <div className="text-sm text-zinc-400">
             Godina rada
-          </div>
-        </div>
-
-        <div>
-          <div className="text-3xl font-black text-[#c89b5e]">
-            15+
-          </div>
-          <div className="text-sm text-zinc-400">
-            Šef RTS orkestra
           </div>
         </div>
 
@@ -651,12 +445,9 @@ const filteredVideos = spisakWithCategory
         <li>✓ Razvijanje tehnike i ritma</li>
       </ul>
 
-      <button
-  onClick={() => setPrikaziLogin(true)}
-  className="w-full mt-10 bg-green-600 text-white py-4 rounded-xl font-black uppercase tracking-wider hover:scale-105 transition"
->
-  Besplatan Pristup
-</button>
+      <button className="w-full mt-10 bg-green-600 text-white py-4 rounded-xl font-black uppercase tracking-wider">
+        Besplatan Pristup
+      </button>
     </div>
 
     {/* PREMIUM */}
@@ -712,21 +503,9 @@ const filteredVideos = spisakWithCategory
         <li>✓ Stalno dodavanje novog sadržaja</li>
       </ul>
 
-      <button
-  onClick={() => {
-   // console.log("premium klik");
-
-    if (!userEmail) {
-      setPrikaziLogin(true);
-      return;
-    }
-
-    setPrikaziPremiumModal(true);
-  }}
-  className="w-full mt-10 bg-[#c89b5e] text-black py-4 rounded-xl font-black uppercase tracking-wider"
->
-  Postani Premium
-</button>
+      <button className="w-full mt-10 bg-[#c89b5e] text-black py-4 rounded-xl font-black uppercase tracking-wider">
+        Postani Premium
+      </button>
     </div>
 
     {/* MASTERCLASS */}
@@ -753,19 +532,7 @@ const filteredVideos = spisakWithCategory
         <li>✓ Trajan pristup kupljenom videu</li>
       </ul>
 
-      <button 
-      onClick={() => {
-    // console.log("single klik");
-
-    if (!userEmail) {
-  setPrikaziLogin(true);
-  return;
-}
-
-    setSinglePurchaseSuccess(false);
-              setPrikaziSinglePurchaseModal(true);
-  }}
-      className="w-full mt-10 bg-gradient-to-r from-blue-600 to-blue-500 text-white py-4 rounded-xl font-black uppercase tracking-wider">
+      <button className="w-full mt-10 bg-gradient-to-r from-blue-600 to-blue-500 text-white py-4 rounded-xl font-black uppercase tracking-wider">
         Naruči Masterclass
       </button>
     </div>
@@ -1100,342 +867,6 @@ hover:shadow-[0_0_40px_rgba(59,130,246,0.15)]
         )}
       </section></>
 )}
-
-{prikaziPremiumModal && (
-  <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 fade-in">
-
-    <div
-      className="absolute inset-0"
-      onClick={() => setPrikaziPremiumModal(false)}
-    />
-
-    <div className="relative z-10 bg-[#111] border border-[#c89b5e]/30 rounded-2xl p-8 w-full max-w-md text-white">
-
-      {premiumSuccess ? (
-
-        <div className="text-center">
-
-          <div className="text-6xl mb-4">
-            ✓
-          </div>
-
-          <h2 className="text-3xl font-black text-[#c89b5e] mb-4">
-            Zahtev je uspešno poslat
-          </h2>
-
-          <p className="text-zinc-300 leading-relaxed">
-            Hvala vam na ukazanom poverenju.
-            <br /><br />
-            Naš tim će uskoro pregledati vaš zahtev i kontaktirati vas putem email adrese:
-          </p>
-
-          <div className="mt-6 mb-6 bg-black/40 border border-white/10 rounded-xl p-4 font-semibold">
-            {contactEmail || userEmail}
-          </div>
-
-          <p className="text-zinc-500 text-sm">
-            Nakon obrade zahteva dobićete sve informacije o uplati i aktivaciji Premium članstva.
-          </p>
-
-          <button
-            onClick={() => {
-              setPremiumSuccess(false);
-              setPrikaziPremiumModal(false);
-            }}
-            className="w-full mt-8 bg-[#c89b5e] text-black py-3 rounded-xl font-black"
-          >
-            Zatvori
-          </button>
-
-        </div>
-
-      ) : (
-
-        <>
-          <h2 className="text-2xl font-black mb-6">
-            Premium prijava
-          </h2>
-
-          <p className="mb-6 text-zinc-400">
-            Potvrđujemo da ćemo vas kontaktirati na:
-          </p>
-
-          <div className="mb-6">
-
-            <label className="block text-sm mb-2">
-              Registrovani email
-            </label>
-
-            <div className="bg-black/40 border border-white/10 rounded-xl p-3 mb-4">
-              {userEmail}
-            </div>
-
-            <label className="block text-sm mb-2">
-              Kontakt email (ako želite drugi)
-            </label>
-
-            <input
-              type="email"
-              value={contactEmail}
-              onChange={(e) => setContactEmail(e.target.value)}
-              placeholder="Ostavite prazno za registrovani email"
-              className="w-full p-3 rounded-xl bg-black border border-white/10"
-            />
-
-          </div>
-
-          <div className="space-y-3">
-
-            <label className="flex gap-3 items-center">
-              <input
-                type="radio"
-                name="region"
-                onChange={() => setRegionType("srbija")}
-              />
-              Srbija
-            </label>
-
-            <label className="flex gap-3 items-center">
-              <input
-                type="radio"
-                name="region"
-                onChange={() => setRegionType("region")}
-              />
-              Region
-            </label>
-
-            <label className="flex gap-3 items-center">
-              <input
-                type="radio"
-                name="region"
-                onChange={() => setRegionType("other")}
-              />
-              Ostalo
-            </label>
-
-          </div>
-
-          {regionType === "other" && (
-            <input
-              type="text"
-              placeholder="Unesite državu"
-              value={customLocation}
-              onChange={(e) => setCustomLocation(e.target.value)}
-              className="w-full mt-4 p-3 rounded-lg bg-black border border-white/10"
-            />
-          )}
-
-          <div className="flex gap-3 mt-8">
-
-            <button
-              onClick={() => setPrikaziPremiumModal(false)}
-              className="flex-1 border border-white/10 py-3 rounded-xl"
-            >
-              Otkaži
-            </button>
-
-            
-
-            <button
-              onClick={submitPremiumRequest}
-              className="flex-1 bg-[#c89b5e] text-black py-3 rounded-xl font-bold"
-            >
-              Pošalji zahtev
-            </button>
-
-          </div>
-        </>
-
-      )}
-
-    </div>
-
-  </div>
-)}
-
-{prikaziSinglePurchaseModal && (
-  <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-
-    <div
-      className="absolute inset-0"
-      onClick={() => {
-        setPrikaziSinglePurchaseModal(false);
-        setSinglePurchaseSuccess(false);
-      }}
-    />
-
-    <div className="relative z-10 bg-[#1c1b1b] border border-blue-500/30 rounded-2xl p-8 w-full max-w-4xl text-white max-h-[90vh] overflow-y-auto">
-
-      {singlePurchaseSuccess ? (
-
-        <div className="text-center">
-
-          <div className="text-6xl mb-4">✓</div>
-
-          <h2 className="text-3xl font-black text-blue-400 mb-4">
-            Zahtev je uspešno poslat
-          </h2>
-
-          <p className="text-zinc-300">
-            Naš tim će uskoro obraditi vaš zahtev.
-          </p>
-
-          <button
-            onClick={() => {
-              setSinglePurchaseSuccess(false);
-              setPrikaziSinglePurchaseModal(false);
-              setSelectedVideos([]);
-            }}
-            className="w-full mt-8 bg-blue-600 text-white py-3 rounded-xl font-black"
-          >
-            Zatvori
-          </button>
-
-        </div>
-
-      ) : (
-
-      <>
-
-    <h2 className="text-3xl font-black mb-6">
-      Izaberite kompozicije
-    </h2>
-
-    <input
-      type="text"
-      placeholder="Pretraga..."
-      value={searchTerm}
-      onChange={(e) => setSearchTerm(e.target.value)}
-      className="w-full p-3 rounded-xl bg-black border border-white/10 mb-4"
-    />
-
-    <select
-  value={categoryFilter}
-  onChange={(e) => setCategoryFilter(e.target.value)}
-  className="w-full p-3 rounded-xl bg-black border border-white/10 mb-4"
->
-  <option value="all">
-    Sve kategorije
-  </option>
-
-  {videoCategories.map((cat) => (
-    <option
-      key={cat.id}
-      value={cat.name}
-    >
-      {cat.name}
-    </option>
-  ))}
-</select>
-
-    <div className="space-y-2 max-h-[400px] overflow-y-auto">
-
-      {filteredVideos.map((video) => (
-
-        <label
-          key={video.id}
-          className="flex items-center justify-between border border-white/40 rounded-xl p-3 cursor-pointer hover:border-blue-500"
-        >
-
-          <div className="flex items-center gap-3">
-
-            <input
-              type="checkbox"
-              className="w-4 h-4 accent-lime-500"
-              checked={selectedVideos.includes(video.id)}
-              onChange={(e) => {
-
-                if (e.target.checked) {
-
-  setSinglePurchaseError("");
-
-  setSelectedVideos([
-    ...selectedVideos,
-    video.id,
-  ]);
-
-                } else {
-
-                  setSelectedVideos(
-                    selectedVideos.filter(
-                      (id) => id !== video.id
-                    )
-                  );
-                }
-              }}
-            />
-
-            <div>
-
-              <div className="font-semibold">
-                {video.redni_broj}. {video.naziv_numere}
-              </div>
-<div className="text-xs text-[#f2cb91]">
-  {video.izvodjac}
-</div>
-            </div>
-
-          </div>
-
-          <div className="font-black text-blue-400">
-            {video.cena.toLocaleString("sr-RS")} RSD
-          </div>
-          
-<div className="text-xs text-[#f2cb91] uppercase">
-  {video.categoryName}
-</div>
-
-        </label>
-
-      ))}
-
-    </div>
-
-    <div className="mt-8 border-t border-white/10 pt-6">
-
-  {singlePurchaseError && (
-    <div className="
-      mb-4
-      p-3
-      rounded-xl
-      bg-red-500/10
-      border
-      border-red-500/30
-      text-red-400
-      text-center
-      text-sm
-    ">
-      {singlePurchaseError}
-    </div>
-  )}
-
-  <div className="flex justify-between items-center mb-6">
-
-    <span className="text-xl">
-      Ukupno:
-    </span>
-
-    <span className="text-3xl font-black text-blue-500">
-      {totalPrice.toLocaleString("sr-RS")} RSD
-    </span>
-
-  </div>
-
-  <button
-    onClick={submitSinglePurchaseRequest}
-    className="w-full bg-blue-600 py-4 rounded-xl font-black uppercase"
-  >
-    Pošalji zahtev
-  </button>
-
-</div>
- </>
-
-      )}
-
-    </div>
-  </div>
-)}
       
       {/* ========================================================================= */}
       {/* LOGIN POP-UP WINDOW (MODAL) */}
@@ -1470,12 +901,7 @@ hover:shadow-[0_0_40px_rgba(59,130,246,0.15)]
     <div className="mt-4 bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-lg px-4 py-3">
       {authError}
     </div>
-    
-
-                
-
   )}
-  
 
             </div>
 

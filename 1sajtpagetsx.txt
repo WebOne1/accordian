@@ -1,0 +1,566 @@
+"use client";
+
+import Link from "next/link";
+import Image from "next/image";
+import { Moon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { supabase } from "../lib/supabase"; // Proveri da li je putanja tačna u zavisnosti od strukture (npr. ../lib/supabase ili ../../lib/supabase)
+import HlsPlayer from "../components/HlsPlayer";
+
+const banerSlike = [
+  "/vpanovic11.png",
+  "/vpanovic2.png",
+  "/vpanovic9.png",
+  "/vpanovic4.jpg",
+  "/vpanovic3.jpg",
+  "/vpanovic6.jpg",
+];
+
+export default function HomePage() {
+  // Stanja sa prve strane (Tema i Baner)
+  const [darkMode, setDarkMode] = useState(false);
+  const [trenutniIndeks, setTrenutniIndeks] = useState(0);
+
+  // Stanja iz video komponente (Supabase podaci)
+  const [videos, setVideos] = useState<any[]>([]);
+  const [subscription, setSubscription] = useState("free");
+  const [purchasedVideos, setPurchasedVideos] = useState<number[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [prikaziLogin, setPrikaziLogin] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+
+
+  // useEffect za učitavanje teme (Dark Mode)
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme === "dark") {
+      setDarkMode(true);
+      document.documentElement.classList.add("dark");
+    } else {
+      setDarkMode(false);
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
+
+  // useEffect za automatsku promenu slika na svake 4 sekunde
+  useEffect(() => {
+    const tajmer = setInterval(() => {
+      setTrenutniIndeks((prethodniIndeks) =>
+        prethodniIndeks === banerSlike.length - 1 ? 0 : prethodniIndeks + 1
+      );
+    }, 6000);
+
+    return () => clearInterval(tajmer);
+  }, []);
+
+  // Učitavanje Supabase podataka pri pokretanju stranice
+  useEffect(() => {
+    async function loadData() {
+      try {
+        await getUserData();
+        await getVideosData();
+      } catch (error) {
+        console.error("Greška pri učitavanju podataka:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  async function getUserData() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setUserEmail(null);
+      return;
+    }
+
+    // Pamtimo email ulogovanog korisnika
+    setUserEmail(user.email || null);
+    setUserId(user.id);
+
+    // Uzimanje pretplate (Ovaj deo već imaš)
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("subscription")
+      .eq("id", user.id)
+      .single();
+
+    if (profileData) {
+      setSubscription(profileData.subscription);
+    }
+
+    // Uzimanje kupljenih pojedinačnih snimaka (Ovaj deo već imaš)
+    const { data: purchases } = await supabase
+      .from("purchased_videos")
+      .select("video_id")
+      .eq("user_id", user.id);
+
+    if (purchases) {
+      setPurchasedVideos(purchases.map((p) => p.video_id));
+    }
+  }
+
+  async function getVideosData() {
+    const { data } = await supabase.from("videos").select("*");
+
+    const sortedVideos = (data || []).sort((a, b) => {
+      const order: { [key: string]: number } = { free: 1, premium: 2, single_purchase: 3 };
+      const accessA = (a.access_type as string) || "free";
+      const accessB = (b.access_type as string) || "free";
+      return (order[accessA] || 1) - (order[accessB] || 1);
+    });
+
+    setVideos(sortedVideos);
+  }
+
+  // Funkcija koja formatira Youtube link za iframe embed
+  const formatYoutubeUrl = (url: string) => {
+    return url.replace("watch?v=", "embed/");
+  };
+
+  return (
+    <main
+      className={`min-h-screen transition-colors duration-500 font-sans ${
+        darkMode ? "bg-black text-white" : "bg-[#f4f0ea] text-black"
+      }`}
+    >
+      {/* NAVBAR */}
+      <nav
+        className={`flex items-center justify-between px-6 md:px-10 py-4 sticky top-0 backdrop-blur z-50 transition-colors duration-500 ${
+          darkMode ? "bg-[#111]/90" : "bg-[#f4f0ea]/90"
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <Image src="/accordion.svg" alt="Accordion" width={60} height={60} className="w-14 h-14" />
+          <h1 className="logo-pisan-font text-5xl tracking-normal normal-case text-[#9f6b3d]">Vladimir Panović</h1>
+        </div>
+
+        {/* Linkovi sada vode na sekcije istog ekrana */}
+        <div className="hidden md:flex gap-8 nav-pisana-slova text-4xl tracking-normal normal-case">
+          <a href="#" className="hover:opacity-70 hover:text-[#9f6b3d] transition">Početna</a>
+          <a href="#biography" className="hover:opacity-70 hover:text-[#9f6b3d] transition">Biografija</a>
+          <a href="#free-lessons" className="hover:opacity-70 hover:text-[#9f6b3d] transition">Besplatne lekcije</a>
+          <a href="#premium-lessons" className="hover:opacity-70 hover:text-[#9f6b3d] transition">Premium</a>
+          <a href="#single-lessons" className="hover:opacity-70 hover:text-[#9f6b3d] transition">Pojedinačne</a>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => {
+              if (darkMode) {
+                setDarkMode(false);
+                document.documentElement.classList.remove("dark");
+                localStorage.setItem("theme", "light");
+              } else {
+                setDarkMode(true);
+                document.documentElement.classList.add("dark");
+                localStorage.setItem("theme", "dark");
+              }
+            }}
+            className="border p-2 rounded-full hover:scale-105 transition"
+          >
+            <Moon size={18} />
+          </button>
+
+          {/* DINAMIČKI PRIKAZ: EMAIL ILI LOGIN DUGME */}
+          {userEmail ? (
+            <div className="flex items-center gap-4">
+              {/* Povećan font za email: sa text-xs na text-sm (na mobilnom) i text-base (na desktopu) */}
+              <span className="text-sm md:text-base font-medium tracking-wide opacity-90 border-b border-dashed border-gray-400 pb-0.5">
+                {userEmail}
+              </span>
+              
+              {/* Povećan font za Odjava dugme: sa text-[10px] na text-xs (na mobilnom) i text-sm (na desktopu) */}
+              <button
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  setUserEmail(null);
+                  setUserId(null);
+                  setSubscription("free");
+                  setPurchasedVideos([]);
+                  window.location.reload();
+                }}
+                className={`text-xs md:text-sm uppercase font-black tracking-widest transition pl-2 ${
+                  darkMode 
+                    ? "text-yellow-400 hover:text-yellow-300" // Žuto u tamnoj temi
+                    : "text-red-600 hover:text-red-700"      // Crveno u svetloj temi
+                }`}
+              >
+                Odjavi se
+              </button>
+            </div>
+          ) : (
+            /* Ako korisnik nije ulogovan, prikazuje se standardno dugme */
+            <button
+              onClick={() => setPrikaziLogin(true)}
+              className={`px-5 py-2 border text-xs uppercase font-bold tracking-wider transition ${
+                darkMode
+                  ? "border-white hover:bg-white hover:text-black"
+                  : "border-black hover:bg-black hover:text-white"
+              }`}
+            >
+              Login
+            </button>
+          )}
+        </div>
+      </nav>
+
+      {/* HERO BANER */}
+      <section
+        className={`fade-in relative w-full min-h-[500px] md:h-[70vh] flex items-center px-6 md:px-16 py-12 text-white overflow-hidden rounded-b-1xl shadow-2xl transition-colors duration-500 ${
+          darkMode ? "bg-black" : "bg-[#1d1612]"
+        }`}
+      >
+        {/* 1. POZADINSKE SLIKE (SLIDER) - z-10 */}
+        <div className="absolute inset-y-0 right-0 w-full md:w-[50%] pointer-events-none flex justify-end z-10">
+          {banerSlike.map((slika, indeks) => (
+            <div
+              key={`${slika}-${indeks}`}
+              className={`absolute inset-y-0 right-0 w-full h-full transition-opacity duration-1000 ease-in-out ${
+                indeks === trenutniIndeks ? "opacity-90 z-10" : "opacity-0 z-0"
+              }`}
+            >
+              <Image
+                src={slika}
+                alt={`Vpbaner ${indeks + 1}`}
+                fill
+                priority={indeks === 0}
+                sizes="(max-width: 768px) 100vw, 50vw"
+                className="object-contain object-right-bottom"
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* 2. TAMNI SLOJ PREKO POZADINE - z-20 */}
+        <div className="absolute inset-0 bg-black/50 pointer-events-none z-20" />
+
+        {/* 3. SADRŽAJ (TEKST I DUGME) - z-30 */}
+        <div className="relative z-30 space-y-6 max-w-2xl">
+          <h2 className="text-5xl sm:text-6xl md:text-7xl font-black uppercase tracking-tight leading-none drop-shadow-md">
+            Tradicija.
+            <br />
+            Emocija.
+            <br />
+            Harmonika.
+          </h2>
+
+          <p className="text-base sm:text-lg md:text-xl text-gray-200 font-light leading-relaxed max-w-xl drop-shadow-sm">
+            Online škola harmonike za početnike, napredne svirače i ljubitelje narodne muzike.
+          </p>
+
+          <div className="pt-2">
+            <a
+              href="#free-lessons"
+              className="inline-block bg-[#9f6b3d] px-8 py-4 uppercase tracking-widest hover:bg-[#855830] hover:scale-105 transition rounded-lg text-sm font-bold shadow-lg text-center"
+            >
+              Započni učenje
+            </a>
+          </div>
+          
+          <div className="text-xs tracking-widest text-gray-400 uppercase font-medium pt-4">
+            Vaš trenutni plan: <span className="font-bold text-white underline">{subscription}</span>
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* 4. NAJVIŠI SLOJ: TVOJA PNG SLIKA ISPRED SVEGA - z-40 */}
+        {/* ========================================================================= */}
+        <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-40 flex items-center justify-start px-6 md:px-220">
+          <div className="relative w-72 h-72 sm:w-96 sm:h-96 md:w-[500px] md:h-[500px] lg:w-[600px] lg:h-[600px] opacity-100">
+            <Image
+              src="/logovlada1.png" // Proveri da li se fajl u public folderu zove tačno ovako
+              alt="Element ispred svega"
+              fill
+              priority
+              sizes="(max-width: 640px) 288px, (max-width: 768px) 384px, (max-width: 1024px) 500px, 600px" // POPRAVLJENO: Dodat sizes prop za uklanjanje Next.js browser greške
+              className="object-contain"
+            />
+          </div>
+        </div>
+        {/* ========================================================================= */}
+
+      </section>
+
+      {/* 1. SEKCIJA: BESPLATNE LEKCIJE (Free Videos) */}
+      <section id="free-lessons" className="px-6 md:px-16 py-20 max-w-7xl mx-auto">
+        <div className="text-center md:text-left mb-12">
+          <span className="text-[#9f6b3d] text-xs font-bold uppercase tracking-widest block mb-2">Besplatan pristup</span>
+          <h2 className="text-4xl font-black uppercase tracking-tight">Besplatne video lekcije</h2>
+        </div>
+
+        {loading ? (
+          <p className="text-center text-gray-500 py-10">Učitavanje lekcija...</p>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {videos
+              .filter((video) => video.access_type === "free")
+              .map((video) => (
+                <div
+                  key={video.id}
+                  className={`rounded-2xl shadow-lg overflow-hidden border transition-transform hover:-translate-y-1 duration-300 ${
+                    darkMode ? "bg-[#161616] border-zinc-800" : "bg-white border-gray-100"
+                  }`}
+                >
+                  {/*<HlsPlayer 
+                    lekcijaSlug={video.title.toLowerCase().replace(/\s+/g, "")} 
+                    userId={userId} 
+                  />*/}
+                  <iframe
+                    className="w-full h-56"
+                    src={formatYoutubeUrl(video.youtube_url)}
+                    title={video.title}
+                    allowFullScreen
+                  />
+                  <div className="p-5">
+                    <span className="bg-green-600/10 text-green-500 px-3 py-1 text-xs font-bold rounded-full tracking-wider uppercase">
+                      Free
+                    </span>
+                    <h3 className="mt-3 text-lg font-bold tracking-tight">
+                      {video.title}
+                    </h3>
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
+      </section>
+
+      {/* 2. SEKCIJA: PREMIUM LEKCIJE (Tamna luksuzna pozadina sa katanac logikom) */}
+      <section id="premium-lessons" className="bg-[#0b0c10] text-white px-6 md:px-16 py-24 border-y border-zinc-900">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-end mb-14 gap-6">
+            <div className="text-center md:text-left">
+              <span className="text-yellow-500 text-xs font-bold uppercase tracking-widest block mb-2">Ekskluzivan sadržaj</span>
+              <h2 className="text-4xl font-black uppercase tracking-tight text-white">Premium Lekcije</h2>
+              <p className="text-gray-400 mt-2 max-w-xl text-sm font-light">
+                Kompletan i strukturisan program sa naprednim ornamentima i aranžmanima narodne muzike.
+              </p>
+            </div>
+            {subscription !== "premium" && (
+              <button className="bg-yellow-500 text-black font-bold uppercase tracking-wider text-xs px-6 py-3.5 rounded-lg hover:bg-yellow-400 hover:scale-105 transition shadow-lg self-center md:self-end">
+                Upgrade na Premium
+              </button>
+            )}
+          </div>
+
+          {loading ? (
+            <p className="text-center text-gray-500 py-10">Učitavanje lekcija...</p>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {videos
+                .filter((video) => video.access_type === "premium")
+                .map((video) => {
+                  // IZMENJENO: Dozvoli pristup ako je profil premium ILI ako se id videa nalazi u kupljenim videima
+                  const imaPristup = subscription === "premium" || purchasedVideos.includes(video.id);
+
+                  return (
+                    <div
+                      key={video.id}
+                      className="bg-[#121318] rounded-2xl overflow-hidden border border-zinc-800 flex flex-col min-h-[320px]"
+                    >
+                      {imaPristup ? (
+                        <>
+                          <HlsPlayer 
+                            lekcijaSlug={video.title.toLowerCase().replace(/\s+/g, "")} 
+                            userId={userId} 
+                          />
+
+                          <div className="p-5 flex-1 flex flex-col justify-between">
+                            <div>
+                              <span className="bg-yellow-500/10 text-yellow-500 px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase">
+                                {subscription === "premium" ? "Premium" : "Kupljena lekcija"}
+                              </span>
+                              <h3 className="mt-3 text-lg font-bold tracking-tight text-white">
+                                {video.title}
+                              </h3>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        /* Katanac i FOMO interfejs za članove koji nisu premium */
+                        <div className="p-8 text-center flex flex-col justify-center items-center flex-1 space-y-4">
+                          <div className="w-14 h-14 bg-zinc-900 border border-zinc-800 rounded-full flex items-center justify-center text-2xl shadow-inner animate-pulse">
+                            🔒
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold tracking-tight text-gray-200">
+                              {video.title}
+                            </h3>
+                            <p className="text-gray-400 text-xs mt-2 font-light max-w-xs">
+                              Ova lekcija i celokupna baza znanja su dostupni isključivo Premium članovima.
+                            </p>
+                          </div>
+                          <button className="text-xs font-bold text-yellow-500 uppercase tracking-wider pt-2 hover:underline">
+                            Saznaj više o članstvu &rarr;
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* 3. SEKCIJA: POJEDINAČNE LEKCIJE (Single Purchase) */}
+      <section id="single-lessons" className="px-6 md:px-16 py-22 max-w-7xl mx-auto">
+        <div className="text-center md:text-left mb-12">
+          <span className="text-blue-500 text-xs font-bold uppercase tracking-widest block mb-2">Zasebna kupovina</span>
+          <h2 className="text-4xl font-black uppercase tracking-tight">Pojedinačne Masterclass Lekcije</h2>
+          <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm max-w-xl font-light">
+            Specijalni raspisani aranžmani i namenske solo deonice koje možete kupiti zasebno, bez mesečne obaveze.
+          </p>
+        </div>
+
+        {loading ? (
+          <p className="text-center text-gray-500 py-10">Učitavanje lekcija...</p>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {videos
+              .filter((video) => video.access_type === "single_purchase")
+              .map((video) => {
+                const hasPurchased = purchasedVideos.includes(video.id);
+
+                return (
+                  <div
+                    key={video.id}
+                    className={`rounded-2xl shadow-xl overflow-hidden border flex flex-col justify-between ${
+                      darkMode ? "bg-[#161616] border-zinc-800" : "bg-white border-gray-100"
+                    }`}
+                  >
+                    {hasPurchased ? (
+                      <>
+                        <HlsPlayer 
+                          lekcijaSlug={video.title.toLowerCase().replace(/\s+/g, "")} 
+                          userId={userId} 
+                        />
+
+                        <div className="p-5">
+                          <span className="bg-emerald-600/10 text-emerald-500 px-3 py-1 text-xs font-bold rounded-full tracking-wider uppercase">
+                            Kupljeno / Pristup omogućen
+                          </span>
+                          <h3 className="mt-3 text-lg font-bold tracking-tight">
+                            {video.title}
+                          </h3>
+                        </div>
+                      </>
+                    ) : (
+                      /* Prikaz za kupovinu */
+                      <div className="p-8 text-center flex flex-col justify-between items-center h-full min-h-[260px]">
+                        <div className="w-12 h-12 bg-blue-500/10 rounded-full flex items-center justify-center text-xl text-blue-500">
+                          🎵
+                        </div>
+                        <div className="space-y-2">
+                          <span className="bg-blue-600/10 text-blue-500 px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase">
+                            Single Purchase
+                          </span>
+                          <h3 className="text-lg font-bold tracking-tight pt-1">
+                            {video.title}
+                          </h3>
+                          <p className="text-gray-400 text-xs font-light max-w-xs">
+                            Otključajte trajni pristup ovoj lekciji i pratećim materijalima.
+                          </p>
+                        </div>
+                        <button className="w-full mt-4 bg-blue-600 text-white font-bold uppercase text-xs tracking-wider py-3 rounded-lg hover:bg-blue-700 hover:scale-[1.02] transition shadow-md">
+                          Kupi Lekciju
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        )}
+      </section>
+      {/* ========================================================================= */}
+      {/* LOGIN POP-UP WINDOW (MODAL) */}
+      {/* ========================================================================= */}
+      {prikaziLogin && (
+        <div className="fixed inset-0 z-99 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 fade-in">
+          {/* Pozadina iza prozora koja takođe zatvara pop-up na klik sa strane */}
+          <div className="absolute inset-0" onClick={() => setPrikaziLogin(false)} />
+
+          {/* Sadržaj prozora */}
+          <div
+            className={`relative z-10 w-full max-w-md rounded-2xl p-8 shadow-2xl transition-colors duration-500 border ${
+              darkMode 
+                ? "bg-[#111] text-white border-zinc-800" 
+                : "bg-white text-black border-gray-100"
+            }`}
+          >
+            {/* Dugme za zatvaranje (X) u gornjem desnom uglu */}
+            <button
+              onClick={() => setPrikaziLogin(false)}
+              className="absolute top-4 right-4 text-xl font-light hover:scale-110 transition opacity-60 hover:opacity-100"
+            >
+              ✕
+            </button>
+
+            {/* Naslov pop-up prozora */}
+            <div className="text-center mb-6">
+              <h3 className="text-2xl font-black uppercase tracking-tight">Prijavi se</h3>
+              <p className="text-xs text-gray-400 mt-1">Pristupite vašim lekcijama za harmoniku</p>
+            </div>
+
+            {/* Login Forma */}
+            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+                  Email adresa
+                </label>
+                <input
+                  type="email"
+                  placeholder="ime@primer.com"
+                  className={`w-full px-4 py-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[#9f6b3d] transition ${
+                    darkMode
+                      ? "bg-zinc-900 border-zinc-800 text-white placeholder-gray-600"
+                      : "bg-gray-50 border-gray-200 text-black placeholder-gray-400"
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+                  Lozinka
+                </label>
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  className={`w-full px-4 py-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[#9f6b3d] transition ${
+                    darkMode
+                      ? "bg-zinc-900 border-zinc-800 text-white placeholder-gray-600"
+                      : "bg-gray-50 border-gray-200 text-black placeholder-gray-400"
+                  }`}
+                />
+              </div>
+
+              {/* Dugme za slanje unutar pop-upa */}
+              <button
+                type="submit"
+                className="w-full bg-[#9f6b3d] hover:bg-[#855830] text-white font-bold uppercase text-xs tracking-widest py-3.5 rounded-lg shadow-lg hover:scale-[1.01] transition mt-2"
+              >
+                Uloguj se
+              </button>
+            </form>
+
+            {/* Dodatne opcije na dnu */}
+            <div className="text-center mt-6 text-xs text-gray-400 space-y-2">
+              <a href="#" className="hover:underline block">Zaboravili ste lozinku?</a>
+              <p>
+                Nemate nalog?{" "}
+                <button className="text-[#9f6b3d] font-bold hover:underline">
+                  Registrujte se
+                </button>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ========================================================================= */}
+    </main>
+  );
+}
